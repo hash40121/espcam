@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elyx — Video Streamer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg:         #0d0f10;
+            --surface:    #141719;
+            --raised:     #1c2022;
+            --border:     #262c2f;
+            --border2:    #2e3538;
+            --text:       #d6dfe3;
+            --muted:      #5c6e76;
+            --accent:     #00e5c3;
+            --accent-dim: rgba(0,229,195,0.12);
+            --warn:       #f59e0b;
+            --warn-dim:   rgba(245,158,11,0.12);
+            --danger:     #ff4d5e;
+            --danger-dim: rgba(255,77,94,0.12);
+            --on:         #22c55e;
+            --font-mono:  'IBM Plex Mono', monospace;
+            --font-ui:    'Inter', sans-serif;
+        }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            min-height: 100vh; display: flex; flex-direction: column;
+            align-items: center; padding: 32px 16px 48px;
+        }
+
+        /* Header */
+        header {
+            width: 100%; max-width: 680px;
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 28px;
+        }
+        .wordmark { display: flex; align-items: baseline; gap: 8px; }
+        .wordmark-name { font-family: var(--font-mono); font-size: 18px; font-weight: 600; letter-spacing: 0.06em; color: var(--accent); text-transform: uppercase; }
+        .wordmark-sub  { font-family: var(--font-mono); font-size: 11px; color: var(--muted); letter-spacing: 0.05em; }
+        .signal-badge {
+            display: flex; align-items: center; gap: 7px;
+            font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+            letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; transition: color 0.3s;
+        }
+        .signal-badge.live { color: var(--on); }
+        .signal-ring { position: relative; width: 10px; height: 10px; }
+        .signal-ring::before, .signal-ring::after { content: ''; position: absolute; inset: 0; border-radius: 50%; }
+        .signal-ring::before { background: var(--muted); transition: background 0.3s; }
+        .signal-ring::after  { background: transparent; border: 1.5px solid var(--muted); animation: none; transition: border-color 0.3s; }
+        .signal-badge.live .signal-ring::before { background: var(--on); }
+        .signal-badge.live .signal-ring::after  { border-color: var(--on); animation: ping 1.4s cubic-bezier(0,0,0.2,1) infinite; }
+        @keyframes ping { 75%,100% { transform: scale(2.4); opacity: 0; } }
+
+        /* Card */
+        .card { width: 100%; max-width: 680px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+
+        /* Tabs */
+        .tabs { display: flex; border-bottom: 1px solid var(--border); background: var(--raised); overflow-x: auto; }
+        .tabs::-webkit-scrollbar { display: none; }
+        .tab {
+            flex: 1; min-width: 80px; padding: 13px 0;
+            font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+            letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+            background: none; border: none; cursor: pointer;
+            border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s;
+            white-space: nowrap;
+        }
+        .tab:hover { color: var(--text); }
+        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+        /* Panels */
+        .panel { display: none; }
+        .panel.active { display: block; }
+
+        /* Sections */
+        .section { padding: 20px 24px; border-bottom: 1px solid var(--border); }
+        .section:last-child { border-bottom: none; }
+        .section-label { font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+
+        /* Fields */
+        .field { margin-bottom: 14px; }
+        .field:last-child { margin-bottom: 0; }
+        .field label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.02em; }
+        .field-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; }
+        .field-row .field { margin-bottom: 0; }
+        .port-field { width: 90px; }
+
+        .input-wrap { position: relative; }
+        .input-prefix { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-family: var(--font-mono); font-size: 12px; color: var(--accent); pointer-events: none; }
+        input[type="text"], input[type="number"] {
+            width: 100%; padding: 10px 12px 10px 36px;
+            background: var(--raised); border: 1px solid var(--border2); border-radius: 8px;
+            color: var(--text); font-family: var(--font-mono); font-size: 13px;
+            outline: none; transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        input[type="number"] { padding-left: 12px; }
+        input[type="text"]:focus, input[type="number"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+        input::placeholder { color: var(--muted); }
+
+        /* Range */
+        .range-row { display: flex; align-items: center; gap: 12px; }
+        input[type="range"] { flex: 1; -webkit-appearance: none; appearance: none; height: 3px; background: var(--border2); border-radius: 2px; outline: none; cursor: pointer; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); border: 2px solid var(--bg); box-shadow: 0 0 0 1px var(--accent); cursor: pointer; transition: box-shadow 0.15s; }
+        input[type="range"]:focus::-webkit-slider-thumb { box-shadow: 0 0 0 4px var(--accent-dim); }
+        .range-value { font-family: var(--font-mono); font-size: 12px; color: var(--accent); min-width: 42px; text-align: right; }
+
+        /* Toggles */
+        .controls-row { display: flex; gap: 20px; flex-wrap: wrap; align-items: center; }
+        .toggle-wrap { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+        .toggle-wrap input[type="checkbox"] { display: none; }
+        .toggle-track { width: 32px; height: 18px; background: var(--raised); border: 1px solid var(--border2); border-radius: 10px; position: relative; transition: background 0.2s, border-color 0.2s; }
+        .toggle-track::after { content: ''; position: absolute; left: 2px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: transform 0.2s, background 0.2s; }
+        .toggle-wrap input:checked + .toggle-track { background: var(--accent-dim); border-color: var(--accent); }
+        .toggle-wrap input:checked + .toggle-track::after { transform: translateX(14px); background: var(--accent); }
+        .toggle-label { font-size: 13px; color: var(--text); }
+
+        /* Select */
+        .select-wrap { display: flex; align-items: center; gap: 8px; }
+        .select-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+        select { background: var(--raised); color: var(--text); border: 1px solid var(--border2); border-radius: 7px; padding: 6px 10px; font-family: var(--font-mono); font-size: 12px; outline: none; cursor: pointer; transition: border-color 0.15s; }
+        select:focus { border-color: var(--accent); }
+
+        /* Buttons */
+        .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border: 1px solid var(--border2); border-radius: 8px; background: var(--raised); color: var(--text); font-family: var(--font-mono); font-size: 12px; font-weight: 500; letter-spacing: 0.03em; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s; }
+        .btn:hover:not(:disabled) { background: var(--border); border-color: var(--text); }
+        .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .btn-primary { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+        .btn-primary:hover:not(:disabled) { background: rgba(0,229,195,0.2); }
+        .btn-danger  { background: var(--danger-dim); border-color: var(--danger); color: var(--danger); }
+        .btn-danger:hover:not(:disabled)  { background: rgba(255,77,94,0.2); }
+        .btn-warn    { background: var(--warn-dim); border-color: var(--warn); color: var(--warn); }
+        .btn-warn:hover:not(:disabled)    { background: rgba(245,158,11,0.2); }
+        .icon { font-size: 14px; line-height: 1; }
+
+        /* Rotation picker */
+        .rotation-picker { display: flex; gap: 8px; flex-wrap: wrap; }
+        .rot-btn {
+            flex: 1; min-width: 60px; padding: 10px 0; text-align: center;
+            background: var(--raised); border: 1px solid var(--border2); border-radius: 8px;
+            font-family: var(--font-mono); font-size: 12px; color: var(--muted);
+            cursor: pointer; transition: all 0.15s; user-select: none;
+        }
+        .rot-btn:hover { border-color: var(--text); color: var(--text); }
+        .rot-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+        .rot-icon { display: block; font-size: 18px; margin-bottom: 4px; }
+
+        /* Preview */
+        .preview-area { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: start; }
+        .video-wrap { position: relative; border-radius: 8px; overflow: hidden; background: #000; border: 1px solid var(--border); aspect-ratio: 4/3; }
+        video { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .video-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+        .video-placeholder { display: flex; flex-direction: column; align-items: center; gap: 8px; opacity: 0.3; }
+        .video-placeholder .cam-icon { font-size: 32px; }
+        .video-placeholder span { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.05em; color: var(--muted); }
+        .canvas-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .canvas-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+        canvas { display: block; image-rendering: pixelated; width: 192px; height: 96px; border-radius: 6px; border: 1px solid var(--border2); background: #000; }
+
+        /* Stats grid */
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .stat-card { background: var(--raised); border: 1px solid var(--border2); border-radius: 8px; padding: 12px 14px; }
+        .stat-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+        .stat-value { font-family: var(--font-mono); font-size: 20px; font-weight: 600; color: var(--accent); }
+        .stat-unit  { font-size: 12px; color: var(--muted); margin-left: 3px; }
+
+        /* Presets */
+        .preset-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+        .preset-item {
+            display: flex; align-items: center; gap: 10px;
+            background: var(--raised); border: 1px solid var(--border2); border-radius: 8px;
+            padding: 10px 14px; cursor: pointer; transition: border-color 0.15s;
+        }
+        .preset-item:hover { border-color: var(--accent); }
+        .preset-item-name { flex: 1; font-family: var(--font-mono); font-size: 13px; color: var(--text); }
+        .preset-item-meta { font-family: var(--font-mono); font-size: 10px; color: var(--muted); }
+        .preset-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 4px; border-radius: 4px; transition: color 0.15s; }
+        .preset-del:hover { color: var(--danger); }
+        .preset-empty { font-family: var(--font-mono); font-size: 12px; color: var(--muted); text-align: center; padding: 20px 0; }
+        .preset-name-row { display: flex; gap: 8px; align-items: center; }
+        .preset-name-row input[type="text"] { flex: 1; }
+
+        /* Reconnect badge */
+        .reconnect-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-family: var(--font-mono); font-size: 11px; color: var(--warn);
+            background: var(--warn-dim); border: 1px solid var(--warn);
+            border-radius: 6px; padding: 4px 10px; margin-top: 10px;
+        }
+        .reconnect-badge.hidden { display: none; }
+
+        /* Status */
+        .status-bar { display: flex; align-items: center; gap: 10px; padding: 14px 24px; background: var(--raised); border-top: 1px solid var(--border); }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; transition: background 0.3s; }
+        .status-dot.on  { background: var(--on); }
+        .status-dot.err { background: var(--danger); }
+        .status-dot.warn { background: var(--warn); animation: blink 1s step-end infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
+        .status-text { font-family: var(--font-mono); font-size: 12px; color: var(--muted); transition: color 0.3s; }
+        .status-text.on   { color: var(--on); }
+        .status-text.err  { color: var(--danger); }
+        .status-text.warn { color: var(--warn); }
+        .status-fps { margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--muted); letter-spacing: 0.05em; }
+        .status-fps span { color: var(--accent); }
+
+        /* Shortcuts */
+        .shortcuts-grid { display: grid; grid-template-columns: auto 1fr; gap: 10px 20px; align-items: center; }
+        .kbd { display: inline-flex; align-items: center; justify-content: center; padding: 3px 8px; background: var(--raised); border: 1px solid var(--border2); border-radius: 5px; font-family: var(--font-mono); font-size: 11px; color: var(--accent); white-space: nowrap; }
+        .shortcut-desc { font-size: 13px; color: var(--text); }
+
+        /* Crop grid */
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        /* Divider */
+        .divider { height: 1px; background: var(--border); margin: 14px 0; }
+
+        @media (max-width: 540px) {
+            .preview-area { grid-template-columns: 1fr; }
+            canvas { width: 100%; height: auto; aspect-ratio: 2/1; }
+            .two-col { grid-template-columns: 1fr; }
+            .field-row { grid-template-columns: 1fr; }
+            .port-field { width: 100%; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+        }
+        @media (prefers-reduced-motion: reduce) { .signal-ring::after { animation: none; } }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="wordmark">
+        <span class="wordmark-name">Elyx</span>
+        <span class="wordmark-sub">// video streamer</span>
+    </div>
+    <div class="signal-badge" id="signalBadge">
+        <span class="signal-ring"></span>
+        <span id="signalLabel">Idle</span>
+    </div>
+</header>
+
+<div class="card">
+
+    <div class="tabs">
+        <button class="tab active" data-tab="stream">Stream</button>
+        <button class="tab" data-tab="image">Image</button>
+        <button class="tab" data-tab="advanced">Advanced</button>
+        <button class="tab" data-tab="shortcuts">Shortcuts</button>
+    </div>
+
+    <!-- ══ STREAM ══ -->
+    <div class="panel active" id="tab-stream">
+
+        <div class="section">
+            <div class="section-label">Connection</div>
+            <div class="field-row">
+                <div class="field">
+                    <label for="espIp">ESP32 IP Address</label>
+                    <div class="input-wrap">
+                        <span class="input-prefix">ws://</span>
+                        <input type="text" id="espIp" value="" placeholder="10.85.68.19">
+                    </div>
+                </div>
+                <div class="field port-field">
+                    <label for="wsPort">Port</label>
+                    <input type="number" id="wsPort" value="81" min="1" max="65535">
+                </div>
+            </div>
+            <div class="btn-row" style="margin-top:14px;">
+                <button class="btn btn-primary" id="connectWsBtn"><span class="icon">⬡</span> Connect</button>
+                <button class="btn btn-danger" id="disconnectWsBtn" disabled><span class="icon">✕</span> Disconnect</button>
+            </div>
+            <div class="reconnect-badge hidden" id="reconnectBadge">⟳ Auto-reconnecting…</div>
+        </div>
+
+        <div class="section">
+            <div class="section-label">Source</div>
+            <div class="btn-row">
+                <button class="btn btn-primary" id="startCamBtn"><span class="icon">◉</span> Use Camera</button>
+                <label class="btn" style="cursor:pointer;">
+                    <span class="icon">↑</span> Load Video File
+                    <input type="file" id="videoFileInput" accept="video/*" style="display:none;">
+                </label>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-label">Streaming</div>
+            <div class="field">
+                <label for="frameRate">Frame Rate — <span style="color:var(--accent)" id="frameRateVal">10</span> fps</label>
+                <div class="range-row">
+                    <input type="range" id="frameRate" min="1" max="30" value="10">
+                    <span class="range-value" id="frameRateDisplay">10 fps</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-label">Preview</div>
+            <div class="preview-area">
+                <div class="video-wrap">
+                    <video id="videoElement" autoplay playsinline></video>
+                    <div class="video-overlay" id="videoOverlay">
+                        <div class="video-placeholder">
+                            <span class="cam-icon">⬡</span>
+                            <span>No source active</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="canvas-wrap">
+                    <span class="canvas-label">128 × 64</span>
+                    <canvas id="previewCanvas" width="128" height="64"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ══ IMAGE ══ -->
+    <div class="panel" id="tab-image">
+
+        <div class="section">
+            <div class="section-label">Processing</div>
+            <div class="field">
+                <label for="threshold">Threshold / Dither Bias</label>
+                <div class="range-row">
+                    <input type="range" id="threshold" min="0" max="255" value="128">
+                    <span class="range-value" id="thresholdVal">128</span>
+                </div>
+            </div>
+            <div class="field">
+                <label for="brightness">Brightness</label>
+                <div class="range-row">
+                    <input type="range" id="brightness" min="-100" max="100" value="0">
+                    <span class="range-value" id="brightnessVal">0</span>
+                </div>
+            </div>
+            <div class="field">
+                <label for="contrast">Contrast</label>
+                <div class="range-row">
+                    <input type="range" id="contrast" min="-100" max="100" value="0">
+                    <span class="range-value" id="contrastVal">0</span>
+                </div>
+            </div>
+            <div class="field">
+                <label for="gamma">Gamma — <span style="font-weight:600;color:var(--accent)" id="gammaLabel">1.0</span></label>
+                <div class="range-row">
+                    <input type="range" id="gamma" min="10" max="300" value="100" step="5">
+                    <span class="range-value" id="gammaVal">1.0</span>
+                </div>
+            </div>
+            <div class="field">
+                <label for="noise">Noise / Grain</label>
+                <div class="range-row">
+                    <input type="range" id="noise" min="0" max="60" value="0">
+                    <span class="range-value" id="noiseVal">0</span>
+                </div>
+            </div>
+            <div class="controls-row" style="margin-top:14px;">
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="invertColor">
+                    <span class="toggle-track"></span>
+                    <span class="toggle-label">Invert Colors</span>
+                </label>
+                <div class="select-wrap">
+                    <span class="select-label">Mode</span>
+                    <select id="processMode">
+                        <option value="threshold">Threshold</option>
+                        <option value="dither">Floyd-Steinberg</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-label">Orientation</div>
+            <div class="field">
+                <label>Rotation</label>
+                <div class="rotation-picker">
+                    <div class="rot-btn active" data-rot="0"><span class="rot-icon">⬆</span>0°</div>
+                    <div class="rot-btn" data-rot="90"><span class="rot-icon">➡</span>90°</div>
+                    <div class="rot-btn" data-rot="180"><span class="rot-icon">⬇</span>180°</div>
+                    <div class="rot-btn" data-rot="270"><span class="rot-icon">⬅</span>270°</div>
+                </div>
+            </div>
+            <div class="controls-row" style="margin-top:14px;">
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="flipH">
+                    <span class="toggle-track"></span>
+                    <span class="toggle-label">Flip Horizontal</span>
+                </label>
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="flipV">
+                    <span class="toggle-track"></span>
+                    <span class="toggle-label">Flip Vertical</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-label">Crop / Zoom</div>
+            
+            <div class="field">
+                <label for="scaleMode">Display Mode</label>
+                <select id="scaleMode" style="width:100%; margin-bottom:10px;">
+                    <option value="fill">Fill (Crop edges)</option>
+                    <option value="fit">Fit (Show all)</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="zoom">Zoom</label>
+                <div class="range-row">
+                    <input type="range" id="zoom" min="100" max="300" value="100" step="5">
+                    <span class="range-value" id="zoomVal">1.0×</span>
+                </div>
+            </div>
+            <div class="two-col">
+                <div class="field">
+                    <label for="cropX">X Offset</label>
+                    <div class="range-row">
+                        <input type="range" id="cropX" min="-100" max="100" value="0">
+                        <span class="range-value" id="cropXVal">0</span>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="cropY">Y Offset</label>
+                    <div class="range-row">
+                        <input type="range" id="cropY" min="-100" max="100" value="0">
+                        <span class="range-value" id="cropYVal">0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="btn-row" style="margin-top:14px;">
+                <button class="btn" id="resetCropBtn"><span class="icon">↺</span> Reset Crop</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ══ ADVANCED ══ -->
+    <div class="panel" id="tab-advanced">
+
+        <!-- Auto-reconnect -->
+        <div class="section">
+            <div class="section-label">Auto-Reconnect</div>
+            <div class="controls-row">
+                <label class="toggle-wrap">
+                    <input type="checkbox" id="autoReconnect" checked>
+                    <span class="toggle-track"></span>
+                    <span class="toggle-label">Reconnect on disconnect</span>
+                </label>
+            </div>
+            <div class="field" style="margin-top:14px;">
+                <label for="reconnectDelay">Retry interval</label>
+                <div class="range-row">
+                    <input type="range" id="reconnectDelay" min="1" max="30" value="3">
+                    <span class="range-value" id="reconnectDelayVal">3 s</span>
+                </div>
+            </div>
+            <div class="field">
+                <label for="maxRetries">Max retries (0 = unlimited)</label>
+                <div class="range-row">
+                    <input type="range" id="maxRetries" min="0" max="20" value="0">
+                    <span class="range-value" id="maxRetriesVal">∞</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stream stats -->
+        <div class="section">
+            <div class="section-label">Stream Stats</div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Frames Sent</div>
+                    <div class="stat-value" id="statFrames">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Data Sent</div>
+                    <div class="stat-value" id="statBytes">0<span class="stat-unit">KB</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Live FPS</div>
+                    <div class="stat-value" id="statFps">—</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Uptime</div>
+                    <div class="stat-value" id="statUptime">—</div>
+                </div>
+            </div>
+            <div class="btn-row" style="margin-top:14px;">
+                <button class="btn" id="resetStatsBtn"><span class="icon">↺</span> Reset Stats</button>
+            </div>
+        </div>
+
+        <!-- Presets -->
+        <div class="section">
+            <div class="section-label">Presets</div>
+            <div class="preset-list" id="presetList">
+                <div class="preset-empty" id="presetEmpty">No presets saved yet</div>
+            </div>
+            <div class="divider"></div>
+            <div class="preset-name-row">
+                <div class="input-wrap" style="flex:1;">
+                    <input type="text" id="presetName" placeholder="Preset name…" style="padding-left:12px;">
+                </div>
+                <button class="btn btn-primary" id="savePresetBtn"><span class="icon">↓</span> Save</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ══ SHORTCUTS ══ -->
+    <div class="panel" id="tab-shortcuts">
+        <div class="section">
+            <div class="section-label">Keyboard Shortcuts</div>
+            <div class="shortcuts-grid">
+                <span class="kbd">C</span><span class="shortcut-desc">Toggle camera</span>
+                <span class="kbd">Space</span><span class="shortcut-desc">Connect / Disconnect WebSocket</span>
+                <span class="kbd">I</span><span class="shortcut-desc">Invert colors</span>
+                <span class="kbd">H</span><span class="shortcut-desc">Flip horizontal</span>
+                <span class="kbd">V</span><span class="shortcut-desc">Flip vertical</span>
+                <span class="kbd">M</span><span class="shortcut-desc">Toggle dither mode</span>
+                <span class="kbd">G</span><span class="shortcut-desc">Reset gamma to 1.0</span>
+                <span class="kbd">N</span><span class="shortcut-desc">Toggle noise (0 ↔ last value)</span>
+                <span class="kbd">↑ / ↓</span><span class="shortcut-desc">Threshold +10 / −10</span>
+                <span class="kbd">[ / ]</span><span class="shortcut-desc">Frame rate −1 / +1 fps</span>
+                <span class="kbd">R</span><span class="shortcut-desc">Reset crop &amp; zoom</span>
+                <span class="kbd">. / ,</span><span class="shortcut-desc">Rotate CW / CCW</span>
+                <span class="kbd">1–4</span><span class="shortcut-desc">Switch tabs</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status -->
+    <div class="status-bar">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="status-text" id="wsStatus">WebSocket disconnected</span>
+        <span class="status-fps" id="fpsCounter" style="display:none;"><span id="fpsVal">0</span> fps</span>
+    </div>
+
+</div>
+
+<script>
+// ── Elements ──
+const video            = document.getElementById('videoElement');
+const canvas           = document.getElementById('previewCanvas');
+const ctx              = canvas.getContext('2d', { willReadFrequently: true });
+const startCamBtn      = document.getElementById('startCamBtn');
+const connectWsBtn     = document.getElementById('connectWsBtn');
+const disconnectWsBtn  = document.getElementById('disconnectWsBtn');
+const espIpInput       = document.getElementById('espIp');
+const wsPortInput      = document.getElementById('wsPort');
+
+if(window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '') {
+    espIpInput.value = window.location.hostname;
+}
+const wsStatus         = document.getElementById('wsStatus');
+const statusDot        = document.getElementById('statusDot');
+const thresholdInput   = document.getElementById('threshold');
+const thresholdVal     = document.getElementById('thresholdVal');
+const videoFileInput   = document.getElementById('videoFileInput');
+const invertColorInput = document.getElementById('invertColor');
+const processModeInput = document.getElementById('processMode');
+const flipHInput       = document.getElementById('flipH');
+const flipVInput       = document.getElementById('flipV');
+const brightnessInput  = document.getElementById('brightness');
+const contrastInput    = document.getElementById('contrast');
+const brightnessVal    = document.getElementById('brightnessVal');
+const contrastVal      = document.getElementById('contrastVal');
+const gammaInput       = document.getElementById('gamma');
+const gammaVal         = document.getElementById('gammaVal');
+const gammaLabel       = document.getElementById('gammaLabel');
+const noiseInput       = document.getElementById('noise');
+const noiseVal         = document.getElementById('noiseVal');
+const frameRateInput   = document.getElementById('frameRate');
+const frameRateDisplay = document.getElementById('frameRateDisplay');
+const frameRateVal     = document.getElementById('frameRateVal');
+const zoomInput        = document.getElementById('zoom');
+const zoomVal          = document.getElementById('zoomVal');
+const cropXInput       = document.getElementById('cropX');
+const cropYInput       = document.getElementById('cropY');
+const cropXVal         = document.getElementById('cropXVal');
+const cropYVal         = document.getElementById('cropYVal');
+const resetCropBtn     = document.getElementById('resetCropBtn');
+const signalBadge      = document.getElementById('signalBadge');
+const signalLabel      = document.getElementById('signalLabel');
+const videoOverlay     = document.getElementById('videoOverlay');
+const fpsCounter       = document.getElementById('fpsCounter');
+const fpsVal           = document.getElementById('fpsVal');
+const autoReconnectCb  = document.getElementById('autoReconnect');
+const reconnectDelay   = document.getElementById('reconnectDelay');
+const reconnectDelayVal= document.getElementById('reconnectDelayVal');
+const maxRetriesInput  = document.getElementById('maxRetries');
+const maxRetriesVal    = document.getElementById('maxRetriesVal');
+const reconnectBadge   = document.getElementById('reconnectBadge');
+const statFrames       = document.getElementById('statFrames');
+const statBytes        = document.getElementById('statBytes');
+const statFps          = document.getElementById('statFps');
+const statUptime       = document.getElementById('statUptime');
+const resetStatsBtn    = document.getElementById('resetStatsBtn');
+const presetList       = document.getElementById('presetList');
+const presetEmpty      = document.getElementById('presetEmpty');
+const presetNameInput  = document.getElementById('presetName');
+const savePresetBtn    = document.getElementById('savePresetBtn');
+
+// ── State ──
+let ws = null, isStreaming = false, frameTimer = null;
+let framesSent = 0, bytesSent = 0;
+let lastFpsTick = performance.now(), connectedAt = null;
+let uptimeTimer = null;
+let retryCount = 0, retryTimer = null;
+let rotation = 0;
+let noiseLastVal = 20;
+let presets = JSON.parse(localStorage.getItem('elyx_presets') || '[]');
+
+// ── Tabs ──
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+});
+function switchTab(n) { const t = document.querySelectorAll('.tab'); if (t[n]) t[n].click(); }
+
+// ── Range readouts ──
+function bindRange(input, display, fmt) {
+    input.addEventListener('input', () => { display.textContent = fmt(input.value); });
+}
+bindRange(thresholdInput,  thresholdVal,     v => v);
+bindRange(brightnessInput, brightnessVal,    v => (v>0?'+':'')+v);
+bindRange(contrastInput,   contrastVal,      v => (v>0?'+':'')+v);
+bindRange(zoomInput,       zoomVal,          v => (v/100).toFixed(1)+'×');
+bindRange(cropXInput,      cropXVal,         v => v);
+bindRange(cropYInput,      cropYVal,         v => v);
+bindRange(frameRateInput,  frameRateDisplay, v => v+' fps');
+bindRange(reconnectDelay,  reconnectDelayVal,v => v+' s');
+bindRange(maxRetriesInput, maxRetriesVal,    v => v==0?'∞':v);
+gammaInput.addEventListener('input', () => {
+    const g = (gammaInput.value/100).toFixed(1);
+    gammaVal.textContent = g; gammaLabel.textContent = g;
+});
+noiseInput.addEventListener('input', () => {
+    noiseVal.textContent = noiseInput.value;
+    if (noiseInput.value > 0) noiseLastVal = parseInt(noiseInput.value);
+});
+frameRateInput.addEventListener('input', () => {
+    frameRateVal.textContent = frameRateInput.value; restartFrameLoop();
+});
+
+// ── Rotation picker ──
+document.querySelectorAll('.rot-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.rot-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        rotation = parseInt(btn.dataset.rot);
+    });
+});
+function rotateStep(dir) {
+    rotation = ((rotation + dir * 90) + 360) % 360;
+    document.querySelectorAll('.rot-btn').forEach(b => {
+        b.classList.toggle('active', parseInt(b.dataset.rot) === rotation);
+    });
+}
+
+// ── Status ──
+function setStatus(state, text) {
+    statusDot.className  = 'status-dot'  + (state ? ' '+state : '');
+    wsStatus.className   = 'status-text' + (state ? ' '+state : '');
+    wsStatus.textContent = text;
+}
+function setSignal(live) {
+    signalBadge.classList.toggle('live', live);
+    signalLabel.textContent = live ? 'Live' : 'Idle';
+    fpsCounter.style.display = live ? '' : 'none';
+}
+function hideOverlay() { videoOverlay.style.display = 'none'; }
+
+// ── Stats ──
+function resetStats() {
+    framesSent = bytesSent = retryCount = 0;
+    lastFpsTick = performance.now(); connectedAt = ws ? performance.now() : null;
+    updateStats(0);
+}
+function updateStats(fps) {
+    statFrames.textContent = framesSent.toLocaleString();
+    const kb = bytesSent / 1024;
+    statBytes.innerHTML = kb >= 1024
+        ? (kb/1024).toFixed(1)+'<span class="stat-unit">MB</span>'
+        : kb.toFixed(1)+'<span class="stat-unit">KB</span>';
+    statFps.textContent = fps > 0 ? fps : '—';
+    if (connectedAt) {
+        const secs = Math.floor((performance.now() - connectedAt) / 1000);
+        const m = Math.floor(secs/60), s = secs%60;
+        statUptime.textContent = m > 0 ? `${m}m ${s}s` : `${s}s`;
+    } else { statUptime.textContent = '—'; }
+}
+resetStatsBtn.addEventListener('click', resetStats);
+
+// ── FPS ticker ──
+function tickFps() {
+    const now = performance.now();
+    const elapsed = (now - lastFpsTick) / 1000;
+    if (elapsed >= 1) {
+        const fps = Math.round(framesSent / elapsed);
+        fpsVal.textContent = fps;
+        updateStats(fps);
+        framesSent = 0; lastFpsTick = now;
+    }
+}
+
+// ── Camera ──
+startCamBtn.addEventListener('click', async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+        alert("Camera API requires HTTPS or localhost."); return;
+    }
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+        video.srcObject = stream;
+        startCamBtn.disabled = true;
+        startCamBtn.innerHTML = '<span class="icon">◉</span> Camera Active';
+        isStreaming = true; hideOverlay(); setSignal(true); startFrameLoop(); initAudio();
+    } catch (err) { alert("Camera error: " + err.message); }
+});
+
+// ── Video file ──
+videoFileInput.addEventListener('change', e => {
+    const file = e.target.files[0]; if (!file) return;
+    video.srcObject = null; video.src = URL.createObjectURL(file);
+    video.loop = true; video.play();
+    isStreaming = true; initAudio(); hideOverlay(); setSignal(true); startFrameLoop();
+});
+
+
+// ── Audio Extraction ──
+let audioCtx;
+let sourceNode;
+let processorNode;
+let audioEnabled = true;
+
+function initAudio() {
+    if (audioCtx) return;
+    try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        sourceNode = audioCtx.createMediaElementSource(video);
+        processorNode = audioCtx.createScriptProcessor(2048, 1, 1);
+        sourceNode.connect(processorNode);
+        processorNode.connect(audioCtx.destination);
+        
+        const targetSampleRate = 8000;
+        const ratio = audioCtx.sampleRate / targetSampleRate;
+        
+        processorNode.onaudioprocess = function(e) {
+            if (!isStreaming || !ws || ws.readyState !== WebSocket.OPEN || !audioEnabled) return;
+            
+            let input = e.inputBuffer.getChannelData(0);
+            let outLen = Math.floor(input.length / ratio);
+            let outBuffer = new Uint8Array(outLen + 1);
+            outBuffer[0] = 0x02; // Audio frame header
+            
+            for (let i = 0; i < outLen; i++) {
+                let inIdx = Math.floor(i * ratio);
+                let sample = input[inIdx]; // -1.0 to 1.0
+                outBuffer[i + 1] = Math.max(0, Math.min(255, Math.floor((sample + 1) * 127.5)));
+            }
+            ws.send(outBuffer);
+            bytesSent += outBuffer.byteLength;
+        };
+    } catch(err) {
+        console.warn("Audio Context init failed", err);
+    }
+}
+
+// ── WebSocket ──
+function connectWs() {
+    let ip = espIpInput ? espIpInput.value.trim().replace(/^https?:\/\//, '').replace(/\/$/, '') : window.location.hostname;
+    if (!ip || ip === "localhost") ip = "10.85.68.19"; // Default fallback
+    const port = wsPortInput ? parseInt(wsPortInput.value) || 81 : 81;
+    if (!ip) return;
+    setStatus('', 'Connecting…');
+    ws = new WebSocket(`ws://${ip}:${port}/`);
+    ws.binaryType = 'arraybuffer';
+    ws.onmessage = (e) => {
+        if (typeof e.data === 'string') {
+            const cmd = e.data;
+            if (cmd === 'PLAY_PAUSE') {
+                if (video.paused) video.play(); else video.pause();
+            } else if (cmd === 'VOL_UP') {
+                video.volume = Math.min(1.0, video.volume + 0.1);
+            } else if (cmd === 'VOL_DOWN') {
+                video.volume = Math.max(0.0, video.volume - 0.1);
+            } else if (cmd === 'SEEK_BACK') {
+                video.currentTime = Math.max(0, video.currentTime - 5);
+            } else if (cmd === 'SEEK_FWD') {
+                if (video.duration) video.currentTime = Math.min(video.duration, video.currentTime + 5);
+            } else if (cmd === 'MUTE') {
+                audioEnabled = !audioEnabled;
+                video.muted = !audioEnabled;
+            }
+        }
+    };
+    ws.onopen = () => {
+        setStatus('on', `Connected — ${ip}:${port}`);
+        connectWsBtn.disabled = true; disconnectWsBtn.disabled = false;
+        reconnectBadge.classList.add('hidden');
+        retryCount = 0; connectedAt = performance.now();
+        if (uptimeTimer) clearInterval(uptimeTimer);
+        uptimeTimer = setInterval(() => updateStats(null), 1000);
+    };
+    ws.onclose = () => {
+        ws = null; connectedAt = null;
+        if (uptimeTimer) clearInterval(uptimeTimer);
+        connectWsBtn.disabled = false; disconnectWsBtn.disabled = true;
+        const max = parseInt(maxRetriesInput.value);
+        const shouldRetry = autoReconnectCb.checked && (max === 0 || retryCount < max);
+        if (shouldRetry) {
+            retryCount++;
+            const delay = parseInt(reconnectDelay.value) * 1000;
+            setStatus('warn', `Disconnected — retrying in ${reconnectDelay.value}s (attempt ${retryCount}${max>0?' / '+max:''})`);
+            reconnectBadge.classList.remove('hidden');
+            retryTimer = setTimeout(() => { reconnectBadge.classList.add('hidden'); connectWs(); }, delay);
+        } else {
+            setStatus('', 'Disconnected'); reconnectBadge.classList.add('hidden');
+        }
+    };
+    ws.onerror = () => { setStatus('err', `Connection failed — check ${ip}:${port}`); };
+}
+
+connectWsBtn.addEventListener('click', () => {
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    retryCount = 0; connectWs();
+});
+disconnectWsBtn.addEventListener('click', () => {
+    autoReconnectCb.checked = false; // manual disconnect stops auto-retry
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    if (ws) ws.close();
+});
+
+// ── Frame loop ──
+function startFrameLoop() { if (frameTimer) clearTimeout(frameTimer); scheduleFrame(); }
+function restartFrameLoop() { if (!isStreaming) return; if (frameTimer) clearTimeout(frameTimer); scheduleFrame(); }
+function scheduleFrame() {
+    const interval = 1000 / (parseInt(frameRateInput.value) || 10);
+    frameTimer = setTimeout(() => { processFrame(); scheduleFrame(); }, interval);
+}
+
+// Offscreen canvas for rotation
+const offCanvas = document.createElement('canvas');
+const offCtx    = offCanvas.getContext('2d', { willReadFrequently: true });
+
+function processFrame() {
+    if (!isStreaming) return;
+    const vW = video.videoWidth, vH = video.videoHeight;
+    if (vW <= 0 || vH <= 0) return;
+
+    const rot      = rotation;
+    const needSwap = rot === 90 || rot === 270;
+    
+    // The offCanvas is always 128x64 to match the final display
+    offCanvas.width  = 128;
+    offCanvas.height = 64;
+
+    const zoom    = parseFloat(zoomInput.value) / 100;
+    const cropXOff= parseFloat(cropXInput.value) / 100;
+    const cropYOff= parseFloat(cropYInput.value) / 100;
+    const flipH   = flipHInput.checked;
+    const flipV   = flipVInput.checked;
+    const scaleMode = document.getElementById('scaleMode').value;
+
+    offCtx.save();
+    // Translate to center of 128x64 canvas
+    offCtx.translate(64, 32);
+    if (rot)  offCtx.rotate(rot * Math.PI / 180);
+    if (flipH || flipV) offCtx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
+
+    // The bounding box in the local coordinate system
+    const boxW = needSwap ? 64 : 128;
+    const boxH = needSwap ? 128 : 64;
+
+    let baseScale;
+    if (scaleMode === 'fit') {
+        baseScale = Math.min(boxW / vW, boxH / vH) * zoom;
+    } else {
+        baseScale = Math.max(boxW / vW, boxH / vH) * zoom;
+    }
+
+    const w = vW * baseScale;
+    const h = vH * baseScale;
+    
+    // Offset only the overflow amount
+    const xOff = cropXOff * Math.max(0, w - boxW) * 0.5;
+    const yOff = cropYOff * Math.max(0, h - boxH) * 0.5;
+    
+    offCtx.drawImage(video, -w/2 - xOff, -h/2 - yOff, w, h);
+    offCtx.restore();
+
+    // Copy to display canvas
+    ctx.clearRect(0, 0, 128, 64);
+    ctx.drawImage(offCanvas, 0, 0);
+
+    const imgData  = ctx.getImageData(0, 0, 128, 64);
+    const data     = imgData.data;
+    const threshold  = parseInt(thresholdInput.value);
+    const invert     = invertColorInput.checked;
+    const mode       = processModeInput.value;
+    const brightness = parseFloat(brightnessInput.value);
+    const contrast   = parseFloat(contrastInput.value);
+    const gamma      = parseFloat(gammaInput.value) / 100;
+    const noiseAmt   = parseInt(noiseInput.value);
+    const cFactor    = contrast >= 0 ? 1 + contrast/100 : 1/(1 - contrast/100);
+
+    // Build gamma LUT
+    const gammaLUT = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) {
+        gammaLUT[i] = Math.round(Math.pow(i / 255, 1/gamma) * 255);
+    }
+
+    const grayData = new Float32Array(128 * 64);
+    for (let py = 0; py < 64; py++) {
+        for (let px = 0; px < 128; px++) {
+            const idx = (py * 128 + px) * 4;
+            let gray = data[idx]*0.299 + data[idx+1]*0.587 + data[idx+2]*0.114;
+            gray = Math.max(0, Math.min(255, gray + brightness * 2.55));
+            gray = Math.max(0, Math.min(255, (gray - 128) * cFactor + 128));
+            gray = gammaLUT[Math.round(gray)];
+            if (noiseAmt > 0) gray = Math.max(0, Math.min(255, gray + (Math.random()*2-1)*noiseAmt));
+            if (invert) gray = 255 - gray;
+            grayData[py * 128 + px] = gray;
+        }
+    }
+
+    const buffer = new Uint8Array(1025);
+    buffer[0] = 0x01;
+    for (let py = 0; py < 64; py++) {
+        for (let px = 0; px < 128; px++) {
+            const idx      = py * 128 + px;
+            const oldPixel = grayData[idx];
+            let newPixel   = oldPixel > threshold ? 255 : 0;
+            if (mode === 'dither') {
+                const qe = oldPixel - newPixel;
+                if (px+1 < 128) grayData[idx+1]     += qe * 7/16;
+                if (py+1 < 64) {
+                    if (px-1 >= 0)   grayData[idx+127] += qe * 3/16;
+                    grayData[idx+128] += qe * 5/16;
+                    if (px+1 < 128)  grayData[idx+129] += qe * 1/16;
+                }
+            }
+            const imgIdx = idx * 4;
+            data[imgIdx] = data[imgIdx+1] = data[imgIdx+2] = newPixel;
+            if (newPixel > 0) buffer[1 + px + Math.floor(py/8)*128] |= (1 << (py%8));
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(buffer);
+        framesSent++; bytesSent += buffer.byteLength;
+    }
+    tickFps();
+}
+
+// ── Reset crop ──
+resetCropBtn.addEventListener('click', () => {
+    zoomInput.value=100; zoomVal.textContent='1.0×';
+    cropXInput.value=0; cropXVal.textContent='0';
+    cropYInput.value=0; cropYVal.textContent='0';
+});
+
+// ── Presets ──
+function getSettings() {
+    return {
+        threshold: thresholdInput.value, brightness: brightnessInput.value,
+        contrast: contrastInput.value, gamma: gammaInput.value, noise: noiseInput.value,
+        invert: invertColorInput.checked, mode: processModeInput.value,
+        scaleMode: document.getElementById('scaleMode').value, flipH: flipHInput.checked, flipV: flipVInput.checked, rotation,
+        zoom: zoomInput.value, cropX: cropXInput.value, cropY: cropYInput.value,
+        frameRate: frameRateInput.value
+    };
+}
+function applySettings(s) {
+    thresholdInput.value = s.threshold; thresholdVal.textContent = s.threshold;
+    brightnessInput.value = s.brightness; brightnessVal.textContent = (s.brightness>0?'+':'')+s.brightness;
+    contrastInput.value = s.contrast; contrastVal.textContent = (s.contrast>0?'+':'')+s.contrast;
+    gammaInput.value = s.gamma; const g=(s.gamma/100).toFixed(1); gammaVal.textContent=g; gammaLabel.textContent=g;
+    noiseInput.value = s.noise; noiseVal.textContent = s.noise;
+    invertColorInput.checked = s.invert; processModeInput.value = s.mode;
+    if(s.scaleMode) document.getElementById('scaleMode').value = s.scaleMode; flipHInput.checked = s.flipH; flipVInput.checked = s.flipV;
+    rotation = s.rotation;
+    document.querySelectorAll('.rot-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.rot)===rotation));
+    zoomInput.value = s.zoom; zoomVal.textContent = (s.zoom/100).toFixed(1)+'×';
+    cropXInput.value = s.cropX; cropXVal.textContent = s.cropX;
+    cropYInput.value = s.cropY; cropYVal.textContent = s.cropY;
+    frameRateInput.value = s.frameRate; frameRateDisplay.textContent = s.frameRate+' fps';
+    frameRateVal.textContent = s.frameRate; restartFrameLoop();
+}
+function savePresets() { localStorage.setItem('elyx_presets', JSON.stringify(presets)); }
+function renderPresets() {
+    presetEmpty.style.display = presets.length ? 'none' : '';
+    const existing = presetList.querySelectorAll('.preset-item');
+    existing.forEach(el => el.remove());
+    presets.forEach((p, i) => {
+        const item = document.createElement('div');
+        item.className = 'preset-item';
+        item.innerHTML = `<span class="preset-item-name">${p.name}</span><span class="preset-item-meta">${new Date(p.ts).toLocaleDateString()}</span><button class="preset-del" title="Delete">✕</button>`;
+        item.querySelector('.preset-del').addEventListener('click', e => {
+            e.stopPropagation(); presets.splice(i, 1); savePresets(); renderPresets();
+        });
+        item.addEventListener('click', () => applySettings(p.settings));
+        presetList.appendChild(item);
+    });
+}
+savePresetBtn.addEventListener('click', () => {
+    const name = presetNameInput.value.trim() || `Preset ${presets.length+1}`;
+    presets.unshift({ name, ts: Date.now(), settings: getSettings() });
+    savePresets(); renderPresets(); presetNameInput.value = '';
+});
+renderPresets();
+
+// ── Keyboard shortcuts ──
+document.addEventListener('keydown', e => {
+    if (['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)) return;
+    switch (e.key) {
+        case 'c': case 'C': if (!startCamBtn.disabled) startCamBtn.click(); break;
+        case ' ':
+            e.preventDefault();
+            if (!connectWsBtn.disabled) connectWsBtn.click();
+            else if (!disconnectWsBtn.disabled) disconnectWsBtn.click();
+            break;
+        case 'i': case 'I': invertColorInput.checked = !invertColorInput.checked; break;
+        case 'h': case 'H': flipHInput.checked = !flipHInput.checked; break;
+        case 'v': case 'V': flipVInput.checked = !flipVInput.checked; break;
+        case 'm': case 'M': processModeInput.value = processModeInput.value==='threshold'?'dither':'threshold'; break;
+        case 'g': case 'G': gammaInput.value=100; gammaVal.textContent=gammaLabel.textContent='1.0'; break;
+        case 'n': case 'N':
+            if (parseInt(noiseInput.value)>0) { noiseLastVal=parseInt(noiseInput.value); noiseInput.value=0; noiseVal.textContent='0'; }
+            else { noiseInput.value=noiseLastVal; noiseVal.textContent=noiseLastVal; }
+            break;
+        case 'ArrowUp':   { e.preventDefault(); const v=Math.min(255,parseInt(thresholdInput.value)+10); thresholdInput.value=v; thresholdVal.textContent=v; break; }
+        case 'ArrowDown': { e.preventDefault(); const v=Math.max(0,parseInt(thresholdInput.value)-10);   thresholdInput.value=v; thresholdVal.textContent=v; break; }
+        case '[': { const v=Math.max(1,parseInt(frameRateInput.value)-1); frameRateInput.value=v; frameRateDisplay.textContent=v+' fps'; frameRateVal.textContent=v; restartFrameLoop(); break; }
+        case ']': { const v=Math.min(30,parseInt(frameRateInput.value)+1); frameRateInput.value=v; frameRateDisplay.textContent=v+' fps'; frameRateVal.textContent=v; restartFrameLoop(); break; }
+        case 'r': case 'R': resetCropBtn.click(); break;
+        case '.': rotateStep(1); break;
+        case ',': rotateStep(-1); break;
+        case '1': switchTab(0); break;
+        case '2': switchTab(1); break;
+        case '3': switchTab(2); break;
+        case '4': switchTab(3); break;
+    }
+});
+</script>
+</body>
+</html>
