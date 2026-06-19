@@ -782,12 +782,23 @@ startCamBtn.addEventListener('click', async () => {
         
         if (document.getElementById('cameraSelect').options.length === 0) {
             await getCameras();
-            const track = currentStream.getVideoTracks()[0];
-            const settings = track.getSettings();
-            if (settings.deviceId) {
-                document.getElementById('cameraSelect').value = settings.deviceId;
-            }
         }
+        const track = currentStream.getVideoTracks()[0];
+        const settings = track.getSettings();
+        if (settings.deviceId) {
+            document.getElementById('cameraSelect').value = settings.deviceId;
+        }
+        
+        // Auto-fix for front camera (flip vertical as requested, and flip horizontal for mirror)
+        const isFront = settings.facingMode === 'user' || (track.label && track.label.toLowerCase().includes('front'));
+        if (isFront) {
+            document.getElementById('flipV').checked = true;
+            document.getElementById('flipH').checked = true;
+        } else {
+            document.getElementById('flipV').checked = false;
+            document.getElementById('flipH').checked = false;
+        }
+
     } catch (err) { alert("Camera error: " + err.message); }
 });
 
@@ -828,7 +839,7 @@ function initAudio() {
             
             for (let i = 0; i < outLen; i++) {
                 let inIdx = Math.floor(i * ratio);
-                let sample = input[inIdx]; // -1.0 to 1.0
+                let sample = input[inIdx] * 4.0; // Boost volume 400%
                 outBuffer[i + 1] = Math.max(0, Math.min(255, Math.floor((sample + 1) * 127.5)));
             }
             ws.send(outBuffer);
@@ -1116,6 +1127,7 @@ document.addEventListener('keydown', e => {
         case '4': switchTab(3); break;
     }
 });
+    window.addEventListener('load', getCameras);
 </script>
 </body>
 </html>
