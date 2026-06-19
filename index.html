@@ -262,7 +262,7 @@
                     <label for="espIp">ESP32 IP Address</label>
                     <div class="input-wrap">
                         <span class="input-prefix">ws://</span>
-                        <input type="text" id="espIp" value="" placeholder="10.85.68.19">
+                        <input type="text" id="espIp" value="" placeholder="e.g. 192.168.1.100">
                     </div>
                 </div>
                 <div class="field port-field">
@@ -281,6 +281,7 @@
             <div class="section-label">Source</div>
             <div class="btn-row">
                 <button class="btn btn-primary" id="startCamBtn"><span class="icon">◉</span> Use Camera</button>
+                <button class="btn btn-danger" id="stopCamBtn" style="display:none;"><span class="icon">✕</span> Stop Camera</button>
                 <label class="btn" style="cursor:pointer;">
                     <span class="icon">↑</span> Load Video File
                     <input type="file" id="videoFileInput" accept="video/*" style="display:none;">
@@ -564,9 +565,7 @@ const disconnectWsBtn  = document.getElementById('disconnectWsBtn');
 const espIpInput       = document.getElementById('espIp');
 const wsPortInput      = document.getElementById('wsPort');
 
-if(window.location.hostname && window.location.hostname !== 'localhost' && window.location.hostname !== '') {
-    espIpInput.value = window.location.hostname;
-}
+
 const wsStatus         = document.getElementById('wsStatus');
 const statusDot        = document.getElementById('statusDot');
 const thresholdInput   = document.getElementById('threshold');
@@ -777,7 +776,8 @@ startCamBtn.addEventListener('click', async () => {
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = currentStream; video.play();
         
-        startCamBtn.innerHTML = '<span class="icon">◉</span> Camera Active';
+        startCamBtn.style.display = 'none';
+        document.getElementById('stopCamBtn').style.display = 'inline-flex';
         isStreaming = true; hideOverlay(); setSignal(true); startFrameLoop(); initAudio();
         
         if (document.getElementById('cameraSelect').options.length === 0) {
@@ -856,7 +856,6 @@ function initAudio() {
 // ── WebSocket ──
 function connectWs() {
     let ip = espIpInput ? espIpInput.value.trim().replace(/^https?:\/\//, '').replace(/\/$/, '') : window.location.hostname;
-    if (!ip || ip === "localhost") ip = "10.85.68.19"; // Default fallback
     const port = wsPortInput ? parseInt(wsPortInput.value) || 81 : 81;
     if (!ip) return;
     setStatus('', 'Connecting…');
