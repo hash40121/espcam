@@ -294,6 +294,15 @@
                     <button class="btn" id="quickFlipVBtn">↕ Flip Vert</button>
                     <button class="btn" id="quickFlipHBtn">↔ Flip Horiz</button>
                 </div>
+                <div class="section" style="margin-top:10px;">
+                    <div class="section-label">Controls</div>
+                    <div class="btn-row">
+                        <button class="btn btn-primary" id="playPauseBtn"><span class="icon">▶︎/❚❚</span> Play/Pause</button>
+                        <button class="btn btn-secondary" id="muteBtn"><span class="icon">🔈</span> Mute</button>
+                        <button class="btn btn-secondary" id="seekBackBtn"><span class="icon">⏪</span> Seek -5s</button>
+                        <button class="btn btn-secondary" id="seekFwdBtn"><span class="icon">⏩</span> Seek +5s</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -810,6 +819,43 @@ videoFileInput.addEventListener('change', e => {
     isStreaming = true; initAudio(); hideOverlay(); setSignal(true); startFrameLoop();
 });
 
+// ── Video Controls ──
+const playPauseBtn = document.getElementById('playPauseBtn');
+const muteBtn = document.getElementById('muteBtn');
+const seekBackBtn = document.getElementById('seekBackBtn');
+const seekFwdBtn = document.getElementById('seekFwdBtn');
+
+playPauseBtn.addEventListener('click', () => {
+    if (video.paused) {
+        video.play();
+        playPauseBtn.innerHTML = '<span class="icon">❚❚</span> Pause';
+    } else {
+        video.pause();
+        playPauseBtn.innerHTML = '<span class="icon">▶︎</span> Play';
+    }
+});
+
+muteBtn.addEventListener('click', () => {
+    video.muted = !video.muted;
+    muteBtn.innerHTML = video.muted ? '<span class="icon">🔇</span> Unmute' : '<span class="icon">🔈</span> Mute';
+});
+// Initialize control button labels
+if (video.paused) {
+    playPauseBtn.innerHTML = '<span class="icon">▶︎</span> Play';
+} else {
+    playPauseBtn.innerHTML = '<span class="icon">❚❚</span> Pause';
+}
+muteBtn.innerHTML = video.muted ? '<span class="icon">🔇</span> Unmute' : '<span class="icon">🔈</span> Mute';
+
+seekBackBtn.addEventListener('click', () => {
+    video.currentTime = Math.max(0, video.currentTime - 5);
+});
+
+seekFwdBtn.addEventListener('click', () => {
+    if (video.duration) {
+        video.currentTime = Math.min(video.duration, video.currentTime + 5);
+    }
+});
 
 // ── Audio Extraction ──
 let audioCtx;
