@@ -286,6 +286,15 @@
                     <input type="file" id="videoFileInput" accept="video/*" style="display:none;">
                 </label>
             </div>
+
+            <div id="camControls" style="display:none; margin-top:10px; background:var(--surface); padding:10px; border-radius:6px; border:1px solid var(--border);">
+                <label for="cameraSelect" style="display:block; margin-bottom:5px; font-size:12px; color:var(--text-dim);">Select Camera</label>
+                <select id="cameraSelect" style="width:100%; margin-bottom:10px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px; border-radius:4px;"></select>
+                <div class="btn-row">
+                    <button class="btn" id="quickFlipVBtn">↕ Flip Vert</button>
+                    <button class="btn" id="quickFlipHBtn">↔ Flip Horiz</button>
+                </div>
+            </div>
         </div>
 
         <div class="section">
@@ -715,16 +724,70 @@ function tickFps() {
 }
 
 // ── Camera ──
+let currentStream = null;
+
+async function getCameras() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        const select = document.getElementById('cameraSelect');
+        select.innerHTML = '';
+        videoDevices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.text = device.label || `Camera ${select.length + 1}`;
+            select.appendChild(option);
+        });
+        if (videoDevices.length > 0) {
+            document.getElementById('camControls').style.display = 'block';
+        }
+    } catch (err) {
+        console.warn("Could not enumerate devices", err);
+    }
+}
+
+document.getElementById('cameraSelect').addEventListener('change', () => {
+    if (isStreaming && currentStream) {
+        startCamBtn.click();
+    }
+});
+
+document.getElementById('quickFlipVBtn').addEventListener('click', () => {
+    flipVInput.checked = !flipVInput.checked;
+});
+document.getElementById('quickFlipHBtn').addEventListener('click', () => {
+    flipHInput.checked = !flipHInput.checked;
+});
+
 startCamBtn.addEventListener('click', async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
         alert("Camera API requires HTTPS or localhost."); return;
     }
+    
+    const deviceId = document.getElementById('cameraSelect').value;
+    const constraints = {
+        video: deviceId ? { deviceId: { exact: deviceId }, width: 320, height: 240 } : { width: 320, height: 240 },
+        audio: false
+    };
+    
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
-        video.srcObject = stream;
-        startCamBtn.disabled = true;
+        if (currentStream) {
+            currentStream.getTracks().forEach(t => t.stop());
+        }
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = currentStream; video.play();
+        
         startCamBtn.innerHTML = '<span class="icon">◉</span> Camera Active';
         isStreaming = true; hideOverlay(); setSignal(true); startFrameLoop(); initAudio();
+        
+        if (document.getElementById('cameraSelect').options.length === 0) {
+            await getCameras();
+            const track = currentStream.getVideoTracks()[0];
+            const settings = track.getSettings();
+            if (settings.deviceId) {
+                document.getElementById('cameraSelect').value = settings.deviceId;
+            }
+        }
     } catch (err) { alert("Camera error: " + err.message); }
 });
 
