@@ -842,8 +842,11 @@ function initAudio() {
                 let sample = input[inIdx] * 4.0; // Boost volume 400%
                 outBuffer[i + 1] = Math.max(0, Math.min(255, Math.floor((sample + 1) * 127.5)));
             }
-            ws.send(outBuffer);
-            bytesSent += outBuffer.byteLength;
+            if (ws?.readyState === WebSocket.OPEN) {
+                if (ws.bufferedAmount > 8192) return; // Drop audio chunk if network is severely congested
+                ws.send(outBuffer);
+                bytesSent += outBuffer.byteLength;
+            }
         };
     } catch(err) {
         console.warn("Audio Context init failed", err);
@@ -1032,6 +1035,10 @@ function processFrame() {
     ctx.putImageData(imgData, 0, 0);
 
     if (ws?.readyState === WebSocket.OPEN) {
+        if (ws.bufferedAmount > 4096) {
+            // Drop frame due to congestion to maintain real-time latency
+            return;
+        }
         ws.send(buffer);
         framesSent++; bytesSent += buffer.byteLength;
     }
